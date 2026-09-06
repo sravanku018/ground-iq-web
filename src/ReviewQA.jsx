@@ -15,7 +15,7 @@ import {
 import { PortalEmpty, PortalError, PortalSkeleton } from './PortalUI'
 import SubmissionEditor from './SubmissionEditor'
 import FeedCard from './components/FeedCard'
-import { getQuestionAliases, resolveAnswerValue, slugQuestionKey } from './questionKey'
+import { getQuestionAliases, getQuestionDisplayLabel, parseQuestionsArray, resolveAnswerValue, slugQuestionKey } from './questionKey'
 
 
 function partyColor(p) {
@@ -110,13 +110,17 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
       listSurveys().catch(() => ({ items: [] })),
       getQuestions().catch(() => ({ questions: [] })),
     ]).then(([d, gq]) => {
-      const items = [...(d.items || [])]
-      if (Array.isArray(gq?.questions) && gq.questions.length > 0) {
+      const items = (d.items || []).map((s) => ({
+        ...s,
+        questions: parseQuestionsArray(s.questions),
+      }))
+      const gqList = parseQuestionsArray(gq?.questions)
+      if (gqList.length > 0) {
         items.push({
           id: 'default',
           form_key: 'default',
           title: gq.title || 'Field Survey',
-          questions: gq.questions,
+          questions: gqList,
         })
       }
       setSurveys(items)
@@ -135,28 +139,28 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
   const allKnownQuestionsMap = useMemo(() => {
     const map = new Map()
     for (const s of surveys) {
-      if (Array.isArray(s.questions)) {
-        s.questions.forEach((q, idx) => {
-          const num = idx + 1
-          if (q.id) {
-            map.set(String(q.id).toLowerCase(), q)
-            const m = String(q.id).match(/^q_?(\d+)$/i)
-            if (m) {
-              map.set(`q_${m[1]}`, q)
-              map.set(`q${m[1]}`, q)
-            }
+      const qs = parseQuestionsArray(s.questions)
+      qs.forEach((q, idx) => {
+        const num = idx + 1
+        if (q.id) {
+          map.set(String(q.id).toLowerCase(), q)
+          const m = String(q.id).match(/^q_?(\d+)$/i)
+          if (m) {
+            map.set(`q_${m[1]}`, q)
+            map.set(`q${m[1]}`, q)
           }
-          map.set(`q_${num}`, q)
-          map.set(`q${num}`, q)
-          if (q.label) {
-            map.set(slugQuestionKey(q.label), q)
-            map.set(String(q.label).toLowerCase(), q)
-          }
-        })
-      }
+        }
+        map.set(`q_${num}`, q)
+        map.set(`q${num}`, q)
+        if (q.label) {
+          map.set(slugQuestionKey(q.label), q)
+          map.set(String(q.label).toLowerCase(), q)
+        }
+      })
     }
     return map
   }, [surveys])
+
 
 
   // Prefetch media when expanded
@@ -511,13 +515,14 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
               surveyByFormKey.get(String(item.form_key || '')) ||
               surveyByFormKey.get(String(item.form_id || '')) ||
               surveyByFormKey.get(String(item.payload?.form_key || '')) ||
-              surveyByFormKey.get(String(item.payload?.form_id || ''))
-            let surveyQuestions = Array.isArray(surveyDef?.questions) ? surveyDef.questions : []
-            if (!surveyQuestions.length && Array.isArray(item.questions)) {
-              surveyQuestions = item.questions
+              surveyByFormKey.get(String(item.payload?.form_id || '')) ||
+              (surveys.length === 1 ? surveys[0] : null)
+            let surveyQuestions = parseQuestionsArray(surveyDef?.questions)
+            if (!surveyQuestions.length) {
+              surveyQuestions = parseQuestionsArray(item.questions)
             }
-            if (!surveyQuestions.length && Array.isArray(item.payload?.questions)) {
-              surveyQuestions = item.payload.questions
+            if (!surveyQuestions.length) {
+              surveyQuestions = parseQuestionsArray(item.payload?.questions)
             }
 
             const qa = surveyQuestions.length > 0
@@ -526,12 +531,14 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
                     const qIndex = idx + 1
                     const id = String(q.id || `q_${qIndex}`).trim()
                     const v = resolveAnswerValue(a, q, qIndex)
+                    const label = getQuestionDisplayLabel(q, qIndex)
                     return {
-                      q: q.label || q.label_te || id,
+                      q: label,
                       a: Array.isArray(v) ? v.join(', ') : String(v ?? ''),
                     }
                   })
                   .filter((x) => x.a !== '')
+
               : Object.entries(a)
                   .filter(([k, v]) => v != null && v !== '' && !k.startsWith('_') && k !== 'data_collector')
                   // FIX: Sort naturally before slicing so q1, q2, q10 aren't scrambled

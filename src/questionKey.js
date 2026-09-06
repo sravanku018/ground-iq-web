@@ -9,6 +9,26 @@ export function slugQuestionKey(label) {
     .slice(0, 64)
 }
 
+/** Safely parse questions array from array, JSON string, or nested JSON string. */
+export function parseQuestionsArray(raw) {
+  if (Array.isArray(raw)) return raw
+  if (typeof raw === 'string') {
+    try {
+      let parsed = JSON.parse(raw)
+      if (typeof parsed === 'string') {
+        try {
+          parsed = JSON.parse(parsed)
+        } catch {}
+      }
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+
 /** Persist Telugu copy only when the author filled it. */
 export function teluguFields(q) {
   const label_te = String(q?.label_te || '').trim()
