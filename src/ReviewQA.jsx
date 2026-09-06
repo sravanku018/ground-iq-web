@@ -526,6 +526,8 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
                   .filter((x) => x.a !== '')
               : Object.entries(a)
                   .filter(([k, v]) => v != null && v !== '' && !k.startsWith('_') && k !== 'data_collector')
+                  // FIX: Sort naturally before slicing so q1, q2, q10 aren't scrambled
+                  .sort(([k1], [k2]) => k1.localeCompare(k2, undefined, { numeric: true, sensitivity: 'base' }))
                   .slice(0, 30)
                   .map(([k, v]) => {
                     const match =

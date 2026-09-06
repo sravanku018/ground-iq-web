@@ -162,8 +162,11 @@ export default function SubmissionEditor({ item, questions: propQuestions, onSav
     }
 
     // 2. Any additional answered fields
-    for (const [k, v] of Object.entries(answers || {})) {
-      if (k.startsWith('_') || k === 'data_collector' || v == null || v === '') continue
+    const extraEntries = Object.entries(answers || {})
+      .filter(([k, v]) => !k.startsWith('_') && k !== 'data_collector' && v != null && v !== '')
+      .sort(([k1], [k2]) => k1.localeCompare(k2, undefined, { numeric: true, sensitivity: 'base' }))
+
+    for (const [k, v] of extraEntries) {
       if (renderedKeys.has(k) || renderedKeys.has(slugQuestionKey(k))) continue
       const matched = qLookup.get(String(k).toLowerCase()) || qLookup.get(slugQuestionKey(k))
       renderedKeys.add(k)
