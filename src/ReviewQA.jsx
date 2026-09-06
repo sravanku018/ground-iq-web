@@ -6,7 +6,9 @@ import {
   downloadMediaFile,
   fetchMediaBlobUrl,
   getQuestions,
+  getSurvey,
   listSubmissionMedia,
+
   listSubmissions,
   listSurveys,
   retryFact,
@@ -135,6 +137,43 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
     }
     return map
   }, [surveys])
+
+  // Fetch survey definition on-demand if a submission belongs to a custom survey not yet in state
+  useEffect(() => {
+    if (!items.length) return
+    const missingKeys = new Set()
+    for (const item of items) {
+      const fk = item.form_key || item.payload?.form_key || item.form_id || item.payload?.form_id
+      if (fk && fk !== 'default' && fk !== 'legacy' && !surveyByFormKey.has(String(fk))) {
+        missingKeys.add(String(fk))
+      }
+    }
+    if (missingKeys.size === 0) return
+    missingKeys.forEach((fk) => {
+      getSurvey(fk)
+        .then((d) => {
+          if (d?.survey) {
+            setSurveys((prev) => {
+              if (
+                prev.some(
+                  (s) =>
+                    String(s.form_key) === String(d.survey.form_key) ||
+                    String(s.id) === String(d.survey.id),
+                )
+              ) {
+                return prev
+              }
+              return [
+                ...prev,
+                { ...d.survey, questions: parseQuestionsArray(d.survey.questions) },
+              ]
+            })
+          }
+        })
+        .catch(() => {})
+    })
+  }, [items, surveyByFormKey])
+
 
   const allKnownQuestionsMap = useMemo(() => {
     const map = new Map()

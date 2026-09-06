@@ -7442,8 +7442,10 @@ async function rawHandler(req: Request): Promise<Response> {
           form_key: r.form_key,
           title: r.title,
           display_lang: surveyDisplayLang((r as { display_lang?: unknown }).display_lang),
+          questions: parseQuestionsArray((r as { questions?: unknown }).questions),
           voice_required: r.voice_required === true,
           voice_time_limit: Number(r.voice_time_limit) || 0,
+
           company_name: r.company_name || null,
           owner_company: owner?.company_name ?? null,
           owner_name: owner?.name ?? null,
