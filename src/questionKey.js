@@ -39,17 +39,33 @@ export function labelPatch(q, label) {
   return patch
 }
 
-export function nextQuestionId(label, existingId, used) {
+/**
+ * Generates or normalizes a database question key in standard q_1, q_2, ... format.
+ * Preserves existing q_N identifiers or uses index/sequential number.
+ */
+export function nextQuestionId(label, existingId, used, index) {
   const set = used || new Set()
-  let id = String(existingId || '').trim()
-  const slug = slugQuestionKey(label)
-  if (!id || id.startsWith('q_') || id.length <= 2) {
-    if (slug) id = slug
+  let id = String(existingId || '').trim().toLowerCase()
+
+  // If already a valid q_N format and not used yet, keep it
+  if (/^q_\d+$/i.test(id) && !set.has(id)) {
+    set.add(id)
+    return id
   }
-  if (!id) id = slug || `q_${Date.now().toString(36)}`
-  const base = id
-  let n = 2
-  while (set.has(id)) id = `${base}_${n++}`
+
+  // If index is supplied (e.g. 1, 2, ...), try q_<index>
+  if (index != null && Number.isFinite(Number(index)) && Number(index) > 0) {
+    const candidate = `q_${Number(index)}`
+    if (!set.has(candidate)) {
+      set.add(candidate)
+      return candidate
+    }
+  }
+
+  // Otherwise, find the lowest unused sequential q_1, q_2, ...
+  let n = 1
+  while (set.has(`q_${n}`)) n++
+  id = `q_${n}`
   set.add(id)
   return id
 }
@@ -63,26 +79,38 @@ export function isQuestionVisible(q) {
  * Used for backwards-compatibility when rendering or editing older survey submissions.
  */
 export const LEGACY_QUESTION_ALIASES = {
-  which_you_prefer_to_watch: ['id', 'w', 'which_you_prefer_to_watch'],
+  which_you_prefer_to_watch: ['id', 'w', 'which_you_prefer_to_watch', 'q_19', 'q19'],
   are_you_eligible_for_any_present_state_govt_schemes: [
     '2_whats_on',
     'q_mtpkyf2o',
     'whats_on',
     '2_whats_on_gen',
     'are_you_eligible_for_any_present_state_govt_schemes',
+    'q_11',
+    'q11',
   ],
 }
 
-/** Get all potential keys/aliases for a question (canonical ID, slug, legacy aliases). */
-export function getQuestionAliases(q) {
+/** Get all potential keys/aliases for a question (canonical ID, q_N, slug, legacy aliases). */
+export function getQuestionAliases(q, index) {
   const aliases = new Set()
   if (!q) return []
   const id = String(q.id || '').trim()
   const labelSlug = q.label ? slugQuestionKey(q.label) : ''
   const key = String(q.key || '').trim()
+
   if (id) {
     aliases.add(id)
     aliases.add(id.toLowerCase())
+    const m = id.match(/^q_?(\d+)$/i)
+    if (m) {
+      aliases.add(`q_${m[1]}`)
+      aliases.add(`q${m[1]}`)
+    }
+  }
+  if (index != null && Number.isFinite(Number(index)) && Number(index) > 0) {
+    aliases.add(`q_${Number(index)}`)
+    aliases.add(`q${Number(index)}`)
   }
   if (labelSlug) {
     aliases.add(labelSlug)
@@ -108,16 +136,24 @@ export function getQuestionAliases(q) {
 
 /**
  * Safely resolves an answer value for a question from an answers map, checking canonical keys,
- * label slug, and any known legacy aliases.
+ * q_N aliases, label slug, and any known legacy aliases.
  */
-export function resolveAnswerValue(answers, q) {
+export function resolveAnswerValue(answers, q, index) {
   if (!answers || typeof answers !== 'object' || !q) return ''
-  const id = String(q.id || slugQuestionKey(q.label) || '').trim()
+  const id = String(q.id || (index != null ? `q_${index}` : '') || slugQuestionKey(q.label) || '').trim()
   if (answers[id] !== undefined && answers[id] !== null && answers[id] !== '') {
     return answers[id]
   }
   if (q.id && answers[q.id] !== undefined && answers[q.id] !== null && answers[q.id] !== '') {
     return answers[q.id]
+  }
+  if (index != null) {
+    if (answers[`q_${index}`] !== undefined && answers[`q_${index}`] !== null && answers[`q_${index}`] !== '') {
+      return answers[`q_${index}`]
+    }
+    if (answers[`q${index}`] !== undefined && answers[`q${index}`] !== null && answers[`q${index}`] !== '') {
+      return answers[`q${index}`]
+    }
   }
   if (q.label) {
     const slug = slugQuestionKey(q.label)
@@ -125,7 +161,7 @@ export function resolveAnswerValue(answers, q) {
       return answers[slug]
     }
   }
-  const aliases = getQuestionAliases(q)
+  const aliases = getQuestionAliases(q, index)
   for (const al of aliases) {
     if (answers[al] !== undefined && answers[al] !== null && answers[al] !== '') {
       return answers[al]
@@ -133,4 +169,15 @@ export function resolveAnswerValue(answers, q) {
   }
   return ''
 }
+
+/** Formats user-friendly question title for Client Admin views. */
+export function getQuestionDisplayLabel(q, index) {
+  if (!q) return index != null ? `Question ${index}` : 'Question'
+  const text = q.label || q.label_te || q.id || (index != null ? `Question ${index}` : 'Question')
+  if (index != null && !text.toLowerCase().startsWith(`q${index}`) && !text.toLowerCase().startsWith(`q_${index}`)) {
+    return `Q${index}. ${text}`
+  }
+  return text
+}
+
 

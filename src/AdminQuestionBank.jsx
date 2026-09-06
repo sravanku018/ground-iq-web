@@ -118,7 +118,8 @@ export default function AdminQuestionBankScreen({ onToast, user }) {
 
   function cleanQuestions() {
     const used = new Set()
-    return questions.map((q) => {
+    return questions.map((q, idx) => {
+      const qIndex = idx + 1
       const optsFromText =
         q.optionsText != null
           ? String(q.optionsText)
@@ -133,8 +134,8 @@ export default function AdminQuestionBankScreen({ onToast, user }) {
             ? q.options
             : undefined
       return {
-        id: nextQuestionId(q.label, q.id, used),
-        label: String(q.label || '').trim() || 'Question',
+        id: nextQuestionId(q.label, q.id, used, qIndex),
+        label: String(q.label || '').trim() || `Question ${qIndex}`,
         type: String(q.type || 'text'),
         options: finalOptions,
         required: !!q.required,
@@ -144,6 +145,7 @@ export default function AdminQuestionBankScreen({ onToast, user }) {
       }
     })
   }
+
 
   async function save() {
     if (!name.trim()) {

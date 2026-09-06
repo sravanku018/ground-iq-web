@@ -136,17 +136,28 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
     const map = new Map()
     for (const s of surveys) {
       if (Array.isArray(s.questions)) {
-        for (const q of s.questions) {
-          if (q.id) map.set(String(q.id).toLowerCase(), q)
+        s.questions.forEach((q, idx) => {
+          const num = idx + 1
+          if (q.id) {
+            map.set(String(q.id).toLowerCase(), q)
+            const m = String(q.id).match(/^q_?(\d+)$/i)
+            if (m) {
+              map.set(`q_${m[1]}`, q)
+              map.set(`q${m[1]}`, q)
+            }
+          }
+          map.set(`q_${num}`, q)
+          map.set(`q${num}`, q)
           if (q.label) {
             map.set(slugQuestionKey(q.label), q)
             map.set(String(q.label).toLowerCase(), q)
           }
-        }
+        })
       }
     }
     return map
   }, [surveys])
+
 
   // Prefetch media when expanded
   useEffect(() => {
@@ -511,9 +522,10 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
 
             const qa = surveyQuestions.length > 0
               ? surveyQuestions
-                  .map((q) => {
-                    const id = String(q.id || slugQuestionKey(q.label) || '').trim()
-                    const v = resolveAnswerValue(a, q)
+                  .map((q, idx) => {
+                    const qIndex = idx + 1
+                    const id = String(q.id || `q_${qIndex}`).trim()
+                    const v = resolveAnswerValue(a, q, qIndex)
                     return {
                       q: q.label || q.label_te || id,
                       a: Array.isArray(v) ? v.join(', ') : String(v ?? ''),
@@ -528,7 +540,12 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
                   .map(([k, v]) => {
                     const match =
                       surveyQuestions.find(
-                        (q) => q.id === k || slugQuestionKey(q.label) === k || q.key === k,
+                        (q, qi) =>
+                          q.id === k ||
+                          `q_${qi + 1}` === k ||
+                          `q${qi + 1}` === k ||
+                          slugQuestionKey(q.label) === k ||
+                          q.key === k,
                       ) ||
                       allKnownQuestionsMap.get(String(k).toLowerCase()) ||
                       allKnownQuestionsMap.get(slugQuestionKey(k))
@@ -549,9 +566,10 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
             const audioSrc = audio?.playUrl || audio?.url || item.audio_url
 
             const pills = surveyQuestions.length > 0
-              ? surveyQuestions.slice(0, 4).map((q) => {
-                  const id = String(q.id || slugQuestionKey(q.label) || '').trim()
-                  const v = resolveAnswerValue(a, q)
+              ? surveyQuestions.slice(0, 4).map((q, idx) => {
+                  const qIndex = idx + 1
+                  const id = String(q.id || `q_${qIndex}`).trim()
+                  const v = resolveAnswerValue(a, q, qIndex)
                   if (v == null || v === '') return null
                   const str = Array.isArray(v) ? v.join(', ') : String(v)
                   return {
@@ -566,6 +584,7 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
                   a.caste ? { label: a.caste } : null,
                   a.respondent_name ? { label: a.respondent_name } : null,
                 ].filter(Boolean)
+
 
 
             const signals = isWeb

@@ -14,6 +14,7 @@ import { saveBlob, zipStore } from './zipStore'
 import { FilterSection } from './PortalUI'
 import SurveyMap from './SurveyMap'
 import { getDisplayLang } from './prefs'
+import { slugQuestionKey } from './questionKey'
 
 function pickFirstSurveyKey(items) {
   const list = Array.isArray(items) ? items : []
@@ -272,7 +273,24 @@ export default function AdminDataScreen({ onToast, initialTab = 'export' }) {
         filtered.forEach((r) => {
           Object.keys(r.answers || {}).forEach((k) => qKeys.add(k))
         })
-        const qCols = [...qKeys].sort()
+        const qCols = [...qKeys].sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+
+        const qLabelMap = new Map()
+        for (const s of surveys || []) {
+          if (Array.isArray(s.questions)) {
+            s.questions.forEach((q, idx) => {
+              const label = q.label || q.label_te || `Question ${idx + 1}`
+              if (q.id) qLabelMap.set(String(q.id).toLowerCase(), label)
+              qLabelMap.set(`q_${idx + 1}`, label)
+              qLabelMap.set(`q${idx + 1}`, label)
+              if (q.label) qLabelMap.set(slugQuestionKey(q.label), label)
+            })
+          }
+        }
+        const humanize = (k) =>
+          qLabelMap.get(String(k).toLowerCase()) ||
+          qLabelMap.get(slugQuestionKey(k)) ||
+          String(k).replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 
         const esc = (v) => {
           const s = String(v ?? '')
@@ -307,7 +325,7 @@ export default function AdminDataScreen({ onToast, initialTab = 'export' }) {
           const headerRow = ['Field / Question', ...filtered.map((r, idx) => `Record #${r.id || idx + 1}`)]
           lines.push(headerRow.map(esc).join(','))
           fixed.forEach((c) => {
-            const rowVals = [c]
+            const rowVals = [humanize(c)]
             filtered.forEach((r) => {
               const base = getBaseRecord(r)
               rowVals.push(esc(base[c]))
@@ -315,7 +333,7 @@ export default function AdminDataScreen({ onToast, initialTab = 'export' }) {
             lines.push(rowVals.join(','))
           })
           qCols.forEach((c) => {
-            const rowVals = [esc(c)]
+            const rowVals = [esc(humanize(c))]
             filtered.forEach((r) => {
               const val = (r.answers || {})[c]
               rowVals.push(esc(Array.isArray(val) ? val.join(' | ') : val))
@@ -323,7 +341,7 @@ export default function AdminDataScreen({ onToast, initialTab = 'export' }) {
             lines.push(rowVals.join(','))
           })
         } else {
-          lines.push([...fixed, ...qCols].map(esc).join(','))
+          lines.push([...fixed.map(humanize), ...qCols.map(humanize)].map(esc).join(','))
           filtered.forEach((r) => {
             const base = getBaseRecord(r)
             const row = []
@@ -337,6 +355,7 @@ export default function AdminDataScreen({ onToast, initialTab = 'export' }) {
         }
         csv = lines.join('\n')
       }
+
 
       const rows = csv.split('\n').filter(Boolean)
       const stamp = exp.period === 'day' ? exp.day : exp.period === 'month' ? exp.month : 'total'

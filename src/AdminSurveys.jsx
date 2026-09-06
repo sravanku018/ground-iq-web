@@ -365,8 +365,8 @@ function cleanQuestions(questions) {
                     : undefined
 
     return {
-      id: nextQuestionId(q.label, q.id, used),
-      label: String(q.label || '').trim() || 'Question',
+      id: nextQuestionId(q.label, q.id, used, idx + 1),
+      label: String(q.label || '').trim() || `Question ${idx + 1}`,
       type: String(q.type || 'text'),
       options: finalOptions,
       required: !!q.required,
@@ -376,6 +376,7 @@ function cleanQuestions(questions) {
     }
   })
 }
+
 
 export default function AdminSurveysScreen({ onToast, user }) {
   // Super Admin creates Projects; Client Admin creates Surveys (needs Create surveys power)

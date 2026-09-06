@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { deleteSubmission, getQuestions, getStoredUser, getSurvey, listSurveys, updateSubmission } from './api'
 import SubmissionMedia from './SubmissionMedia'
-import { getQuestionAliases, resolveAnswerValue, slugQuestionKey } from './questionKey'
+import { getQuestionAliases, getQuestionDisplayLabel, resolveAnswerValue, slugQuestionKey } from './questionKey'
 
 function issuesToText(v) {
   if (Array.isArray(v)) return v.join(', ')
@@ -126,20 +126,33 @@ export default function SubmissionEditor({ item, questions: propQuestions, onSav
     const renderedKeys = new Set()
 
     const qLookup = new Map()
-    for (const q of [...allKnownQs, ...(surveyQs || [])]) {
-      if (q.id) qLookup.set(String(q.id).toLowerCase(), q)
+    const allQuestions = [...allKnownQs, ...(surveyQs || [])]
+    allQuestions.forEach((q, idx) => {
+      const qIndex = idx + 1
+      if (q.id) {
+        qLookup.set(String(q.id).toLowerCase(), q)
+        const m = String(q.id).match(/^q_?(\d+)$/i)
+        if (m) {
+          qLookup.set(`q_${m[1]}`, q)
+          qLookup.set(`q${m[1]}`, q)
+        }
+      }
+      qLookup.set(`q_${qIndex}`, q)
+      qLookup.set(`q${qIndex}`, q)
       if (q.label) {
         qLookup.set(slugQuestionKey(q.label), q)
         qLookup.set(String(q.label).toLowerCase(), q)
       }
-    }
+    })
 
     // 1. Survey defined questions
     if (surveyQs && surveyQs.length > 0) {
-      for (const q of surveyQs) {
-        const id = String(q.id || slugQuestionKey(q.label) || '').trim()
+      for (let idx = 0; idx < surveyQs.length; idx++) {
+        const q = surveyQs[idx]
+        const qIndex = idx + 1
+        const id = String(q.id || `q_${qIndex}`).trim()
         if (!id) continue
-        const aliases = getQuestionAliases(q)
+        const aliases = getQuestionAliases(q, qIndex)
         for (const al of aliases) {
           renderedKeys.add(al)
           renderedKeys.add(String(al).toLowerCase())
@@ -149,11 +162,13 @@ export default function SubmissionEditor({ item, questions: propQuestions, onSav
         if (q.id) renderedKeys.add(q.id)
         if (q.label) renderedKeys.add(slugQuestionKey(q.label))
 
-        const val = resolveAnswerValue(answers, q)
+        const val = resolveAnswerValue(answers, q, qIndex)
+        const displayLabel = getQuestionDisplayLabel(q, qIndex)
 
         fields.push({
           key: id,
-          label: q.label || q.label_te || id,
+          label: displayLabel,
+          rawLabel: q.label || q.label_te || id,
           label_te: q.label_te && q.label_te !== q.label ? q.label_te : null,
           required: Boolean(q.required),
           type: q.type === 'textarea' || (typeof val === 'string' && val.length > 60) ? 'textarea' : 'text',
@@ -191,21 +206,24 @@ export default function SubmissionEditor({ item, questions: propQuestions, onSav
     setSaving(true)
     try {
       const cleanAnswers = { ...answers }
-      for (const q of surveyQs || []) {
-        const id = String(q.id || slugQuestionKey(q.label) || '').trim()
+      for (let idx = 0; idx < (surveyQs || []).length; idx++) {
+        const q = surveyQs[idx]
+        const qIndex = idx + 1
+        const id = String(q.id || `q_${qIndex}`).trim()
         if (!id) continue
         if (cleanAnswers[id] === undefined || cleanAnswers[id] === '') {
-          const v = resolveAnswerValue(cleanAnswers, q)
+          const v = resolveAnswerValue(cleanAnswers, q, qIndex)
           if (v !== '') cleanAnswers[id] = v
         }
         // Remove legacy aliases so they don't linger
-        const aliases = getQuestionAliases(q)
+        const aliases = getQuestionAliases(q, qIndex)
         for (const al of aliases) {
           if (al !== id && al !== q.id && al !== slugQuestionKey(q.label || '')) {
             delete cleanAnswers[al]
           }
         }
       }
+
 
       const body = {
         answers: cleanAnswers,

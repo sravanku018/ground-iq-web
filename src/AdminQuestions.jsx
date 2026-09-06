@@ -139,7 +139,7 @@ export default function AdminQuestionsScreen({ onToast, user }) {
       ...list,
       {
         ...EMPTY_Q,
-        id: '',
+        id: `q_${list.length + 1}`,
         label: '',
         speak: '',
         _uid: `n-${Date.now()}`,
@@ -187,7 +187,8 @@ export default function AdminQuestionsScreen({ onToast, user }) {
     setSaving(true)
     try {
       const used = new Set()
-      const cleaned = questions.map((q) => {
+      const cleaned = questions.map((q, idx) => {
+        const qIndex = idx + 1
         const optsFromText =
           q.optionsText != null
             ? String(q.optionsText)
@@ -211,8 +212,8 @@ export default function AdminQuestionsScreen({ onToast, user }) {
                       : undefined
 
         return {
-          id: nextQuestionId(q.label, q.id, used),
-          label: String(q.label || '').trim() || 'Question',
+          id: nextQuestionId(q.label, q.id, used, qIndex),
+          label: String(q.label || '').trim() || `Question ${qIndex}`,
           type: String(q.type || 'text'),
           options: finalOptions,
           required: !!q.required,
@@ -221,6 +222,7 @@ export default function AdminQuestionsScreen({ onToast, user }) {
           ...teluguFields(q),
         }
       })
+
       if (surveyId) {
         await updateSurvey(surveyId, { title, questions: cleaned, display_lang: displayLang })
       } else if (isSuperAdmin) {
