@@ -1614,9 +1614,9 @@ async function ensureSchema(): Promise<void> {
       SET payload = jsonb_set(
         payload,
         '{answers}',
-        (payload->'answers' - 'id') || jsonb_build_object('which_you_prefer_to_watch', payload->'answers'->'id')
+        (payload->'answers' - 'id' - 'w') || jsonb_build_object('which_you_prefer_to_watch', COALESCE(payload->'answers'->'which_you_prefer_to_watch', payload->'answers'->'id', payload->'answers'->'w'))
       )
-      WHERE payload->'answers' ? 'id'
+      WHERE (payload->'answers' ? 'id' OR payload->'answers' ? 'w')
         AND NOT (payload->'answers' ? 'which_you_prefer_to_watch')
     `,
     () => sql`
@@ -1624,11 +1624,12 @@ async function ensureSchema(): Promise<void> {
       SET payload = jsonb_set(
         payload,
         '{answers}',
-        (payload->'answers' - '2_whats_on' - 'q_mtpkyf2o') || jsonb_build_object('are_you_eligible_for_any_present_state_govt_schemes', COALESCE(payload->'answers'->'2_whats_on', payload->'answers'->'q_mtpkyf2o'))
+        (payload->'answers' - '2_whats_on' - 'q_mtpkyf2o' - 'whats_on' - '2_whats_on_gen') || jsonb_build_object('are_you_eligible_for_any_present_state_govt_schemes', COALESCE(payload->'answers'->'are_you_eligible_for_any_present_state_govt_schemes', payload->'answers'->'2_whats_on', payload->'answers'->'q_mtpkyf2o', payload->'answers'->'whats_on', payload->'answers'->'2_whats_on_gen'))
       )
-      WHERE (payload->'answers' ? '2_whats_on' OR payload->'answers' ? 'q_mtpkyf2o')
+      WHERE (payload->'answers' ? '2_whats_on' OR payload->'answers' ? 'q_mtpkyf2o' OR payload->'answers' ? 'whats_on' OR payload->'answers' ? '2_whats_on_gen')
         AND NOT (payload->'answers' ? 'are_you_eligible_for_any_present_state_govt_schemes')
     `,
+
   ];
 
   for (const step of steps) {

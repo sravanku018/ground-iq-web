@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { deleteSubmission, getQuestions, getStoredUser, getSurvey, listSurveys, updateSubmission } from './api'
 import SubmissionMedia from './SubmissionMedia'
-import { slugQuestionKey } from './questionKey'
+import { getQuestionAliases, resolveAnswerValue, slugQuestionKey } from './questionKey'
 
 function issuesToText(v) {
   if (Array.isArray(v)) return v.join(', ')
@@ -139,15 +139,17 @@ export default function SubmissionEditor({ item, questions: propQuestions, onSav
       for (const q of surveyQs) {
         const id = String(q.id || slugQuestionKey(q.label) || '').trim()
         if (!id) continue
+        const aliases = getQuestionAliases(q)
+        for (const al of aliases) {
+          renderedKeys.add(al)
+          renderedKeys.add(String(al).toLowerCase())
+          renderedKeys.add(slugQuestionKey(al))
+        }
         renderedKeys.add(id)
         if (q.id) renderedKeys.add(q.id)
         if (q.label) renderedKeys.add(slugQuestionKey(q.label))
 
-        const val =
-          answers[id] ??
-          (q.id ? answers[q.id] : undefined) ??
-          (q.label ? answers[slugQuestionKey(q.label)] : undefined) ??
-          ''
+        const val = resolveAnswerValue(answers, q)
 
         fields.push({
           key: id,
@@ -167,7 +169,7 @@ export default function SubmissionEditor({ item, questions: propQuestions, onSav
       .sort(([k1], [k2]) => k1.localeCompare(k2, undefined, { numeric: true, sensitivity: 'base' }))
 
     for (const [k, v] of extraEntries) {
-      if (renderedKeys.has(k) || renderedKeys.has(slugQuestionKey(k))) continue
+      if (renderedKeys.has(k) || renderedKeys.has(String(k).toLowerCase()) || renderedKeys.has(slugQuestionKey(k))) continue
       const matched = qLookup.get(String(k).toLowerCase()) || qLookup.get(slugQuestionKey(k))
       renderedKeys.add(k)
       fields.push({
@@ -186,17 +188,27 @@ export default function SubmissionEditor({ item, questions: propQuestions, onSav
   }, [surveyQs, allKnownQs, answers])
 
   async function save() {
-    // Fix 4: Required field validation
-    const missingRequired = renderedFields.filter(f => f.required && !(answers[f.key] || '').trim())
-    if (missingRequired.length > 0 && !force) {
-      onToast?.(`Missing required fields: ${missingRequired.map(f => f.label).join(', ')}. Or check "Force confirm".`, 'error')
-      return
-    }
-
     setSaving(true)
     try {
+      const cleanAnswers = { ...answers }
+      for (const q of surveyQs || []) {
+        const id = String(q.id || slugQuestionKey(q.label) || '').trim()
+        if (!id) continue
+        if (cleanAnswers[id] === undefined || cleanAnswers[id] === '') {
+          const v = resolveAnswerValue(cleanAnswers, q)
+          if (v !== '') cleanAnswers[id] = v
+        }
+        // Remove legacy aliases so they don't linger
+        const aliases = getQuestionAliases(q)
+        for (const al of aliases) {
+          if (al !== id && al !== q.id && al !== slugQuestionKey(q.label || '')) {
+            delete cleanAnswers[al]
+          }
+        }
+      }
+
       const body = {
-        answers: { ...answers },
+        answers: cleanAnswers,
         submitted_by: submittedBy.trim() || undefined,
         status,
         note: note.trim() || undefined,
@@ -204,6 +216,7 @@ export default function SubmissionEditor({ item, questions: propQuestions, onSav
         has_audio: isWeb ? false : hasAudio,
         has_photo: isWeb ? false : hasPhoto,
       }
+
       if (body.answers.issues != null) {
         body.answers.issues = textToIssues(body.answers.issues)
       }

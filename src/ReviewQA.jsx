@@ -15,7 +15,7 @@ import {
 import { PortalEmpty, PortalError, PortalSkeleton } from './PortalUI'
 import SubmissionEditor from './SubmissionEditor'
 import FeedCard from './components/FeedCard'
-import { slugQuestionKey } from './questionKey'
+import { getQuestionAliases, resolveAnswerValue, slugQuestionKey } from './questionKey'
 
 
 function partyColor(p) {
@@ -513,11 +513,7 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
               ? surveyQuestions
                   .map((q) => {
                     const id = String(q.id || slugQuestionKey(q.label) || '').trim()
-                    const v =
-                      a[id] ??
-                      (q.id ? a[q.id] : undefined) ??
-                      (q.label ? a[slugQuestionKey(q.label)] : undefined) ??
-                      ''
+                    const v = resolveAnswerValue(a, q)
                     return {
                       q: q.label || q.label_te || id,
                       a: Array.isArray(v) ? v.join(', ') : String(v ?? ''),
@@ -555,10 +551,7 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
             const pills = surveyQuestions.length > 0
               ? surveyQuestions.slice(0, 4).map((q) => {
                   const id = String(q.id || slugQuestionKey(q.label) || '').trim()
-                  const v =
-                    a[id] ??
-                    (q.id ? a[q.id] : undefined) ??
-                    (q.label ? a[slugQuestionKey(q.label)] : undefined)
+                  const v = resolveAnswerValue(a, q)
                   if (v == null || v === '') return null
                   const str = Array.isArray(v) ? v.join(', ') : String(v)
                   return {
@@ -573,6 +566,7 @@ export default function ReviewQAScreen({ onToast, user, focusSubmissionId, onFoc
                   a.caste ? { label: a.caste } : null,
                   a.respondent_name ? { label: a.respondent_name } : null,
                 ].filter(Boolean)
+
 
             const signals = isWeb
               ? [

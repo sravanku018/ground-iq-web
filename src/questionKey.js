@@ -57,3 +57,80 @@ export function nextQuestionId(label, existingId, used) {
 export function isQuestionVisible(q) {
   return q?.visible !== false
 }
+
+/**
+ * Known legacy/transient question keys mapped to current canonical question slugs.
+ * Used for backwards-compatibility when rendering or editing older survey submissions.
+ */
+export const LEGACY_QUESTION_ALIASES = {
+  which_you_prefer_to_watch: ['id', 'w', 'which_you_prefer_to_watch'],
+  are_you_eligible_for_any_present_state_govt_schemes: [
+    '2_whats_on',
+    'q_mtpkyf2o',
+    'whats_on',
+    '2_whats_on_gen',
+    'are_you_eligible_for_any_present_state_govt_schemes',
+  ],
+}
+
+/** Get all potential keys/aliases for a question (canonical ID, slug, legacy aliases). */
+export function getQuestionAliases(q) {
+  const aliases = new Set()
+  if (!q) return []
+  const id = String(q.id || '').trim()
+  const labelSlug = q.label ? slugQuestionKey(q.label) : ''
+  const key = String(q.key || '').trim()
+  if (id) {
+    aliases.add(id)
+    aliases.add(id.toLowerCase())
+  }
+  if (labelSlug) {
+    aliases.add(labelSlug)
+  }
+  if (key) {
+    aliases.add(key)
+    aliases.add(key.toLowerCase())
+  }
+
+  const checkKeys = [id, labelSlug, key].filter(Boolean)
+  for (const k of checkKeys) {
+    const kNorm = k.toLowerCase()
+    const legacy = LEGACY_QUESTION_ALIASES[kNorm]
+    if (Array.isArray(legacy)) {
+      for (const al of legacy) {
+        aliases.add(al)
+        aliases.add(al.toLowerCase())
+      }
+    }
+  }
+  return [...aliases]
+}
+
+/**
+ * Safely resolves an answer value for a question from an answers map, checking canonical keys,
+ * label slug, and any known legacy aliases.
+ */
+export function resolveAnswerValue(answers, q) {
+  if (!answers || typeof answers !== 'object' || !q) return ''
+  const id = String(q.id || slugQuestionKey(q.label) || '').trim()
+  if (answers[id] !== undefined && answers[id] !== null && answers[id] !== '') {
+    return answers[id]
+  }
+  if (q.id && answers[q.id] !== undefined && answers[q.id] !== null && answers[q.id] !== '') {
+    return answers[q.id]
+  }
+  if (q.label) {
+    const slug = slugQuestionKey(q.label)
+    if (answers[slug] !== undefined && answers[slug] !== null && answers[slug] !== '') {
+      return answers[slug]
+    }
+  }
+  const aliases = getQuestionAliases(q)
+  for (const al of aliases) {
+    if (answers[al] !== undefined && answers[al] !== null && answers[al] !== '') {
+      return answers[al]
+    }
+  }
+  return ''
+}
+
