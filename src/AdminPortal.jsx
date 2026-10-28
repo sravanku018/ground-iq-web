@@ -17,7 +17,6 @@ import {
   me,
 } from './api'
 import ShareAppLink from './components/ShareAppLink'
-import { mockStreamItems, mockBreakdown, DEMO_KPI } from './demoMode'
 import useAppRelease from './useAppRelease'
 import QuotaIndicator from './components/QuotaIndicator'
 import AdminLogin from './AdminLogin'
@@ -229,7 +228,7 @@ function Overview({ user, stats, onNav, superAdminOnly = false, canPage = () => 
     let alive = true
     listSubmissions(100, 'all', {})
       .then((d) => {
-        if (alive) setRecentItems(mockStreamItems(48))
+        if (alive) setRecentItems(d.items || [])
       })
       .catch(() => {
         if (alive) setRecentItems([])
@@ -244,7 +243,7 @@ function Overview({ user, stats, onNav, superAdminOnly = false, canPage = () => 
         const items = (d.items || []).filter(
           (s) => s.form_key !== 'default' && s.form_key !== 'legacy',
         )
-        setSurveyBreak(mockBreakdown(items))
+        setSurveyBreak(items)
       })
       .catch(() => {
         if (alive) setSurveyBreak([])
@@ -254,7 +253,7 @@ function Overview({ user, stats, onNav, superAdminOnly = false, canPage = () => 
       .then((d) => {
         if (!alive) return
         const surveyors = d.users || d.surveyors || (Array.isArray(d) ? d : [])
-        setSurveyorCount(DEMO_KPI.surveyors)
+        setSurveyorCount(surveyors.length)
       })
       .catch((e) => console.warn('[portal] surveyor list failed', e))
 
@@ -275,12 +274,10 @@ function Overview({ user, stats, onNav, superAdminOnly = false, canPage = () => 
     }
   }, [stats?.submissions, isSuper])
 
-  // The opening page always shows mock data — real records stay on the
-  // Review / Charts pages.
-  const pendingCount = DEMO_KPI.pending
-  const confirmedCount = DEMO_KPI.confirmed
-  const rejectedCount = DEMO_KPI.rejected
-  const liveAllCount = DEMO_KPI.total
+  const pendingCount = reviewPending
+  const confirmedCount = confirmedTotal
+  const rejectedCount = rejectedTotal
+  const liveAllCount = allSubmitted
 
   const displayedItems = recentItems.filter((it) => {
     const isWeb = it.source === 'web-survey' || it.source === 'web'
@@ -290,9 +287,9 @@ function Overview({ user, stats, onNav, superAdminOnly = false, canPage = () => 
     return st === activityFilter
   })
   const liveWebCount = recentItems.filter((it) => it.source === 'web-survey' || it.source === 'web').length
-  const webSubmittedView = DEMO_KPI.web
-  const fieldUsedView = DEMO_KPI.field
-  const districtsView = DEMO_KPI.districts
+  const webSubmittedView = webSubmitted
+  const fieldUsedView = fieldUsed
+  const districtsView = stats?.districts ?? '—'
 
 
   return (
@@ -885,16 +882,14 @@ function Overview({ user, stats, onNav, superAdminOnly = false, canPage = () => 
               return (
                 <div
                   key={it.id}
-                  onClick={() => {
-                    onToast?.('Sample record — this page shows mock data', 'ok')
-                    return
+                  onClick={() =>
                     onNav({
                       page: 'review',
                       submissionId: it.id,
                       source: isWeb ? 'web' : 'field',
                       formKey: it.form_key || it.form_id || '',
                     })
-                  }}
+                  }
                   style={{
                     display: 'flex',
                     alignItems: 'center',
