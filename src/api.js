@@ -694,6 +694,19 @@ export function getAnswerRows(filters = {}, limit = 10000) {
   return request(`/api/admin/answer-rows?${q.toString()}`)
 }
 
+/** Landing-page contact requests (Super Admin inbox). */
+export function getContactRequests() {
+  return request('/api/contact-requests')
+}
+
+export function setContactRequestStatus(id, status = 'handled') {
+  return request(`/api/contact-requests/${id}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ status }),
+  })
+}
+
 /** Live release advert — version + Cloudflare-mirrored APK URL. */
 export function getAppRelease() {
   return request('/api/app-version')

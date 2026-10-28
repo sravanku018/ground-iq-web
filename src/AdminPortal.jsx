@@ -47,6 +47,7 @@ const AdminClientAdminsScreen = lazy(() => import('./AdminClientAdmins'))
 const AdminCompaniesScreen = lazy(() => import('./AdminCompanies'))
 const AdminWebSurveyScreen = lazy(() => import('./AdminWebSurvey'))
 const AdminProfileScreen = lazy(() => import('./AdminProfile'))
+const AdminContactRequestsScreen = lazy(() => import('./AdminContactRequests'))
 
 // Matches the sidebar: each group’s `pages` become the subtabs on that screen.
 const NAV = [
@@ -79,6 +80,13 @@ const COMPANIES_NAV = {
   pages: ['companies'],
 }
 
+const CONTACT_NAV = {
+  id: 'contact',
+  label: 'Contact Requests',
+  icon: 'phone',
+  pages: ['contact'],
+}
+
 const PAGE_LABELS = {
   overview: 'Overview',
   analyze: 'Dashboard',
@@ -98,6 +106,7 @@ const PAGE_LABELS = {
   profile: 'Organization',
   admins: 'Client Admins',
   companies: 'Companies',
+  contact: 'Contact Requests',
 }
 
 // All standard survey management, analytics, export, review, and web survey screens are visible to Client Admin.
@@ -1153,7 +1162,7 @@ export default function AdminPortal({ superAdminOnly = false }) {
   )
 
   const baseNav = isSuper
-    ? [...NAV, COMPANIES_NAV, CLIENT_ADMINS_NAV, PLATFORM_NAV]
+    ? [...NAV, COMPANIES_NAV, CLIENT_ADMINS_NAV, CONTACT_NAV, PLATFORM_NAV]
     : NAV
   const nav = baseNav
     .map((n) => ({ ...n, pages: n.pages.filter(canPage) }))
@@ -1571,6 +1580,7 @@ export default function AdminPortal({ superAdminOnly = false }) {
               <div className="side-section-label" style={{ marginTop: 14 }}>GOVERNANCE</div>
               <button className={`side-sub ${page === 'companies' ? 'active' : ''}`} onClick={() => goPage('companies')}><Icon name="building" size={18} />Companies</button>
               <button className={`side-sub ${page === 'admins' ? 'active' : ''}`} onClick={() => goPage('admins')}><Icon name="shield" size={18} />Client Admins</button>
+              <button className={`side-sub ${page === 'contact' ? 'active' : ''}`} onClick={() => goPage('contact')}><Icon name="phone" size={18} />Contact Requests</button>
               <button className={`side-sub ${page === 'audit' || page === 'seats' ? 'active' : ''}`} onClick={() => goPage('audit')}><Icon name="chair" size={18} />Seats &amp; Audit</button>
             </>
           )}
@@ -1723,6 +1733,9 @@ export default function AdminPortal({ superAdminOnly = false }) {
           {page === 'seats' && canPage('seats') && <AdminSeatsScreen onToast={notify} />}
           {page === 'admins' && canPage('admins') && (
             <AdminClientAdminsScreen onToast={notify} />
+          )}
+          {page === 'contact' && canPage('contact') && (
+            <AdminContactRequestsScreen onToast={notify} />
           )}
           {page === 'companies' && canPage('companies') && (
             <AdminCompaniesScreen onToast={notify} onNav={goPage} />

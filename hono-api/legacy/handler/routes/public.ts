@@ -86,6 +86,29 @@ export async function handlePublic(c: Ctx): Promise<Response | null> {
   }
 
   // Login — admin portal OR surveyor field app (accounts created by Client Admin only)
+  // ── Landing-page contact form → Super Admin inbox ─────────────────────
+  if (path === "/api/contact" && method === "POST") {
+    const ip = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown";
+    if (!checkRateLimit(ip)) {
+      return json({ error: "Too many requests. Try again later." }, 429);
+    }
+    const body = await readBody(req);
+    const name = String(body.name || "").trim().slice(0, 120);
+    const email = String(body.email || "").trim().slice(0, 200);
+    const purpose = String(body.purpose || "").trim().slice(0, 300);
+    const message = String(body.message || "").trim().slice(0, 2000);
+    if (!name) return json({ error: "Your name is required." }, 400);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      return json({ error: "A valid email address is required." }, 400);
+    }
+    if (!purpose) return json({ error: "Purpose is required." }, 400);
+    await sql`
+        INSERT INTO contact_requests (name, email, purpose, message)
+        VALUES (${name}, ${email}, ${purpose}, ${message || null})
+      `.catch(() => null);
+    return json({ ok: true, message: "Request received — the Super Admin will contact you." });
+  }
+
   if (path === "/api/auth/login" && method === "POST") {
     const ip = req.headers.get("x-forwarded-for") || req.headers.get("cf-connecting-ip") || "unknown";
     if (!checkRateLimit(ip)) {

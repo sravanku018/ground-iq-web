@@ -57,6 +57,17 @@ export async function ensureSchema(): Promise<void> {
         ON submissions ((payload->'answers'->>'client_package_id'))
         WHERE COALESCE(payload->'answers'->>'client_package_id', '') <> ''
       `,
+    () => sql`
+        CREATE TABLE IF NOT EXISTS contact_requests (
+          id SERIAL PRIMARY KEY,
+          name TEXT NOT NULL,
+          email TEXT NOT NULL,
+          purpose TEXT NOT NULL,
+          message TEXT,
+          status TEXT NOT NULL DEFAULT 'new',
+          created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+      `,
     () => sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_secret TEXT`,
     () => sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
     () => sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS target_quota INTEGER NOT NULL DEFAULT 0`,
@@ -305,7 +316,7 @@ export async function ensureCompanyExists(
 
 // Bump this when ensureSchema() steps change. The version is stored in
 // app_settings; if it matches, the ~58 CREATE/ALTER round-trips are skipped.
-const SCHEMA_VERSION = "2026-10-26.1";
+const SCHEMA_VERSION = "2026-10-26.2";
 
 export let schemaReady: Promise<void> | null = null;
 

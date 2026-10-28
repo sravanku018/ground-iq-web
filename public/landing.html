@@ -520,6 +520,7 @@
         <li><a href="#web-survey-hub">How it works</a></li>
         
         <li><a href="#security">Security</a></li>
+        <li><a href="#contact" style="color: #16a34a; font-weight: 700;">Contact</a></li>
       </ul>
     </div>
     <div class="nav-actions">
@@ -1101,6 +1102,50 @@
   </div>
 
   <!-- ═══ Footer ═══ -->
+  <!-- ═══ Contact ═══ -->
+  <section class="workflow-section" id="contact" style="background: #f8fafc;">
+    <div style="max-width: 720px; margin: 0 auto;">
+      <div class="section-head">
+        <div class="section-eyebrow" style="color: #16a34a;">Contact</div>
+        <h2 class="section-title">Talk to the Smart Survey X team</h2>
+        <p class="section-sub">
+          Send a request below — it goes straight to the Super Admin inbox. Prefer email?
+          Write to <a href="mailto:smartsurveyx@gmail.com" style="color: #1a73e8; font-weight: 700;">smartsurveyx@gmail.com</a>.
+        </p>
+      </div>
+
+      <form id="contact-form" class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 12px;" onsubmit="submitContact(event)">
+        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #334155;">
+          Name *
+          <input id="contact-name" required maxlength="120" placeholder="Your full name"
+                 style="padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;" />
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #334155;">
+          Email *
+          <input id="contact-email" type="email" required maxlength="200" placeholder="you@example.com"
+                 style="padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;" />
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #334155;">
+          Purpose * <span style="font-weight: 400; color: #64748b;">(required)</span>
+          <input id="contact-purpose" required maxlength="300" placeholder="e.g. Demo request, pricing, field survey partnership"
+                 style="padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px;" />
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: #334155;">
+          Message (optional)
+          <textarea id="contact-message" rows="4" maxlength="2000" placeholder="Anything else we should know…"
+                    style="padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; resize: vertical;"></textarea>
+        </label>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <button type="submit" id="contact-submit" class="btn btn-primary" style="background: #16a34a; min-width: 200px;">
+            Send request →
+          </button>
+          <a href="mailto:smartsurveyx@gmail.com" class="btn btn-outline">✉ Email us instead</a>
+          <span id="contact-status" style="font-size: 13px;"></span>
+        </div>
+      </form>
+    </div>
+  </section>
+
   <footer class="footer">
     <div class="footer-inner">
       <div>
@@ -1127,6 +1172,43 @@
       document.getElementById('toastText').innerText = msg;
       t.classList.add('show');
       setTimeout(() => { t.classList.remove('show'); }, 3200);
+    }
+
+    /* ── Contact form → Super Admin inbox ── */
+    async function submitContact(ev) {
+      ev.preventDefault();
+      const btn = document.getElementById('contact-submit');
+      const status = document.getElementById('contact-status');
+      const name = document.getElementById('contact-name').value.trim();
+      const email = document.getElementById('contact-email').value.trim();
+      const purpose = document.getElementById('contact-purpose').value.trim();
+      const message = document.getElementById('contact-message').value.trim();
+      if (!name || !email || !purpose) {
+        status.textContent = 'Name, email and purpose are required.';
+        status.style.color = '#dc2626';
+        return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      status.textContent = '';
+      try {
+        const res = await fetch('https://162.35.96.65.sslip.io/api/contact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({ name, email, purpose, message }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || 'Could not send your request');
+        status.textContent = '✓ Request received — the Super Admin will contact you.';
+        status.style.color = '#16a34a';
+        document.getElementById('contact-form').reset();
+      } catch (e) {
+        status.textContent = e.message || 'Could not send — please email smartsurveyx@gmail.com';
+        status.style.color = '#dc2626';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send request →';
+      }
     }
 
     /* ── Web Survey Interactive Simulation Functions ── */

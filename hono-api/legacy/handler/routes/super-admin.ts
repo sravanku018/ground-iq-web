@@ -205,5 +205,30 @@ export async function handleSuperAdmin(c: Ctx): Promise<Response | null> {
     logAudit(me, "super_admin_reset", "user", sa.id, { username: sa.username });
     return json({ ok: true, username: sa.username });
   }
+  // ── Contact requests from the landing page ─────────────────────────────
+  if (path === "/api/contact-requests" && method === "GET") {
+    if (!me) return json({ error: "Login required" }, 401);
+    if (me.role !== "super_admin") return json({ error: "Super Admin only" }, 403);
+    const rows = await sql`
+        SELECT id, name, email, purpose, message, status, created_at
+        FROM contact_requests
+        ORDER BY id DESC LIMIT 500
+      `.catch(() => []);
+    return json({ items: rows });
+  }
+  const contactMatch = path.match(/^\/api\/contact-requests\/(\d+)$/);
+  if (contactMatch && method === "PATCH") {
+    if (!me) return json({ error: "Login required" }, 401);
+    if (me.role !== "super_admin") return json({ error: "Super Admin only" }, 403);
+    const body = await readBody(req);
+    const status = String(body.status || "").trim() === "handled" ? "handled" : "new";
+    const rows = await sql`
+        UPDATE contact_requests SET status = ${status} WHERE id = ${Number(contactMatch[1])}
+        RETURNING id, status
+      `.catch(() => []);
+    if (!rows.length) return json({ error: "Request not found" }, 404);
+    return json({ ok: true, ...(rows[0] as Record<string, unknown>) });
+  }
+
   return null;
 }
