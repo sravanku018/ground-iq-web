@@ -505,6 +505,29 @@ export function deleteSubmission(id) {
   })
 }
 
+export function pinSetup(pin) {
+  return request('/api/auth/pin/setup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin }),
+  })
+}
+
+export function pinLogin(username, pin, expected_role) {
+  return request('/api/auth/pin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, pin, expected_role }),
+  })
+}
+
+export function pinDisable() {
+  return request('/api/auth/pin/disable', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
 export function confirmAllPending(limit = 500, note = '', ids = null) {
   return request('/api/submissions/confirm-pending', {
     method: 'POST',

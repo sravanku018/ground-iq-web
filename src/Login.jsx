@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { clearSession, login } from './api'
+import { clearSession, login, pinLogin } from './api'
+import PinPad from './components/PinPad'
 import { versionLabel } from './version'
 import {
   authenticateBiometric,
@@ -19,8 +20,19 @@ import logoMark from './assets/logo-mark.png'
  * Credentials from Client Admin. No demo credentials on screen.
  */
 export default function LoginScreen({ onSuccess, onToast }) {
-  const [username, setUsername] = useState('')
+  const [username, setUsername] = useState(() => {
+    try { return localStorage.getItem('esurvey_last_username_field') || '' } catch { return '' }
+  })
   const [password, setPassword] = useState('')
+  const lastUser = (() => {
+    try { return localStorage.getItem('esurvey_last_username_field') || '' } catch { return '' }
+  })()
+  const pinReady = (() => {
+    try { return !!lastUser && localStorage.getItem('esurvey_has_pin_field') === 'true' } catch { return false }
+  })()
+  const [pinMode, setPinMode] = useState(false)
+  const [pin, setPin] = useState('')
+  const [pinLoading, setPinLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [bioLoading, setBioLoading] = useState(false)
@@ -102,6 +114,41 @@ export default function LoginScreen({ onSuccess, onToast }) {
     }
   }
 
+  async function handlePinLogin(code) {
+    setError('')
+    setLoading(true)
+    try {
+      clearSession()
+      const data = await pinLogin(lastUser, code, 'surveyor')
+      if (data.user?.role !== 'surveyor') {
+        clearSession()
+        throw new Error('This PIN is not a surveyor login.')
+      }
+      if (data.user?.active === false) {
+        clearSession()
+        throw new Error('Account disabled.')
+      }
+      try {
+        localStorage.setItem('esurvey_last_username_field', lastUser)
+        localStorage.setItem('esurvey_has_pin_field', String(!!data.user?.has_pin))
+      } catch { /* ignore */ }
+      onToast?.(`Hi ${data.user.name}`, 'ok')
+      onSuccess?.(data.user)
+    } catch (err) {
+      const msg =
+        err.status === 429
+          ? 'Too many login attempts — please wait 60 seconds.'
+          : err.status === 423
+            ? err.message
+            : err.message || 'PIN sign-in failed'
+      setError(msg)
+      onToast?.(msg, 'error')
+      if (err.status === 423) setPinMode(false)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function handleLogin(e) {
     e.preventDefault()
     setError('')
@@ -132,6 +179,10 @@ export default function LoginScreen({ onSuccess, onToast }) {
         setError(msg)
         throw new Error(msg)
       }
+      try {
+        localStorage.setItem('esurvey_last_username_field', loginName)
+        localStorage.setItem('esurvey_has_pin_field', String(!!data.user?.has_pin))
+      } catch { /* ignore */ }
       if (nativeBio) {
         const enabled = await offerBiometricAfterLogin(
           data.user?.username || username.trim(),
@@ -234,6 +285,54 @@ export default function LoginScreen({ onSuccess, onToast }) {
               </div>
             ) : null}
           </div>
+        ) : null}
+
+        {pinReady && pinMode ? (
+          <div className="card" style={{ marginBottom: 14, padding: 16, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)' }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 14, color: '#e2e8f0' }}>
+              Enter the 4-digit PIN for @{lastUser}
+            </h3>
+            <p className="fl-lead" style={{ margin: '0 0 10px', fontSize: 11 }}>
+              Quick unlock — your password still works anytime.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+              <PinPad
+                value={pin}
+                onChange={setPin}
+                onComplete={(code) => void handlePinLogin(code)}
+                disabled={loading || pinLoading}
+              />
+            </div>
+            {error ? (
+              <div className="fl-error" role="alert">{error}</div>
+            ) : null}
+            <button
+              type="button"
+              className="fl-submit"
+              style={{ background: 'none', border: '1px solid rgba(255,255,255,0.18)' }}
+              onClick={() => { setPinMode(false); setPin(''); setError('') }}
+              disabled={loading || pinLoading}
+            >
+              Use password instead
+            </button>
+          </div>
+        ) : null}
+
+        {pinReady && !pinMode ? (
+          <button
+            type="button"
+            className="fl-submit"
+            style={{
+              marginTop: 0,
+              background: 'rgba(255,255,255,0.10)',
+              color: '#e2e8f0',
+              border: '1px solid rgba(255,255,255,0.18)',
+            }}
+            onClick={() => { setPinMode(true); setError('') }}
+            disabled={loading}
+          >
+            🔢 Sign in with 4-digit PIN
+          </button>
         ) : null}
 
         <form className="fl-form" onSubmit={handleLogin} autoComplete="on">

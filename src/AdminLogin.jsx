@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { clearSession, login } from './api'
+import { clearSession, login, pinLogin } from './api'
+import PinPad from './components/PinPad'
 import {
   authenticateBiometric,
   biometricStatus,
@@ -16,9 +17,23 @@ import logoMark from './assets/logo-mark.png'
 /** Client Admin web portal login — clean form, no demo credentials.
  * superAdminOnly → separate Super Admin console (server-enforced expected_role=super_admin). */
 export default function AdminLogin({ onSuccess, onToast, superAdminOnly = false }) {
-  const [username, setUsername] = useState('')
+  const [username, setUsername] = useState(() => {
+    if (superAdminOnly) return ''
+    try { return localStorage.getItem('esurvey_last_username_admin') || '' } catch { return '' }
+  })
   const [password, setPassword] = useState('')
   const [totp, setTotp] = useState('')
+  const lastUser = (() => {
+    if (superAdminOnly) return ''
+    try { return localStorage.getItem('esurvey_last_username_admin') || '' } catch { return '' }
+  })()
+  const pinReady = (() => {
+    if (superAdminOnly) return false
+    try { return !!lastUser && localStorage.getItem('esurvey_has_pin_admin') === 'true' } catch { return false }
+  })()
+  const [pinMode, setPinMode] = useState(false)
+  const [pin, setPin] = useState('')
+  const [pinLoading, setPinLoading] = useState(false)
   const [totpStep, setTotpStep] = useState(null)
   const [loading, setLoading] = useState(false)
   const [bioLoading, setBioLoading] = useState(false)
@@ -125,11 +140,17 @@ export default function AdminLogin({ onSuccess, onToast, superAdminOnly = false 
           superAdminOnly ? 'Super Admin console only.' : 'Client Admin portal only.',
         )
       }
-      if (nativeBio) {
-        const enabled = await offerBiometricAfterLogin(
-          data.user?.username || username.trim(),
-        )
-        if (enabled) onToast?.('Fingerprint unlock enabled', 'ok')
+      if (!superAdminOnly) {
+        try {
+          localStorage.setItem('esurvey_last_username_admin', String(data.user?.username || username.trim()).toLowerCase())
+          localStorage.setItem('esurvey_has_pin_admin', String(!!data.user?.has_pin))
+        } catch { /* ignore */ }
+        if (nativeBio) {
+          const enabled = await offerBiometricAfterLogin(
+            data.user?.username || username.trim(),
+          )
+          if (enabled) onToast?.('Fingerprint unlock enabled', 'ok')
+        }
       }
       onToast?.(`Welcome ${data.user.name}`, 'ok')
       onSuccess?.(data.user)
@@ -149,6 +170,42 @@ export default function AdminLogin({ onSuccess, onToast, superAdminOnly = false 
           : err.message || 'Login failed'
       setError(msg)
       onToast?.(msg, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handlePinLogin(code) {
+    setError('')
+    setLoading(true)
+    try {
+      clearSession()
+      const data = await pinLogin(lastUser, code, 'admin')
+      const role = data.user?.role
+      if (role !== 'admin' && role !== 'sub_client_admin') {
+        clearSession()
+        throw new Error('Client Admin portal only.')
+      }
+      if (data.user?.active === false) {
+        clearSession()
+        throw new Error('Account disabled.')
+      }
+      try {
+        localStorage.setItem('esurvey_last_username_admin', lastUser)
+        localStorage.setItem('esurvey_has_pin_admin', String(!!data.user?.has_pin))
+      } catch { /* ignore */ }
+      onToast?.(`Welcome ${data.user.name}`, 'ok')
+      onSuccess?.(data.user)
+    } catch (err) {
+      const msg =
+        err.status === 429
+          ? 'Too many login attempts — please wait 60 seconds.'
+          : err.status === 423
+            ? err.message
+            : err.message || 'PIN sign-in failed'
+      setError(msg)
+      onToast?.(msg, 'error')
+      if (err.status === 423) setPinMode(false)
     } finally {
       setLoading(false)
     }
@@ -225,6 +282,49 @@ export default function AdminLogin({ onSuccess, onToast, superAdminOnly = false 
               </div>
             ) : null}
           </div>
+        ) : null}
+
+        {pinReady && pinMode ? (
+          <div className="card" style={{ marginBottom: 12, padding: 16 }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 14 }}>
+              Enter the 4-digit PIN for @{lastUser}
+            </h3>
+            <p className="muted" style={{ margin: '0 0 10px', fontSize: 11 }}>
+              Quick unlock — your password still works anytime.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+              <PinPad
+                value={pin}
+                onChange={setPin}
+                onComplete={(code) => void handlePinLogin(code)}
+                disabled={loading || pinLoading}
+              />
+            </div>
+            {error ? (
+              <div className="login-alert" role="alert">{error}</div>
+            ) : null}
+            <button
+              type="button"
+              className="btn"
+              style={{ width: '100%' }}
+              onClick={() => { setPinMode(false); setPin(''); setError('') }}
+              disabled={loading || pinLoading}
+            >
+              Use password instead
+            </button>
+          </div>
+        ) : null}
+
+        {pinReady && !pinMode && !superAdminOnly ? (
+          <button
+            type="button"
+            className="btn"
+            style={{ marginTop: 0, width: '100%' }}
+            onClick={() => { setPinMode(true); setError('') }}
+            disabled={loading || bioLoading || passkeyLoading}
+          >
+            🔢 Sign in with 4-digit PIN
+          </button>
         ) : null}
 
         <form onSubmit={handleLogin} className="login-form">

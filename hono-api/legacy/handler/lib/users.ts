@@ -31,7 +31,7 @@ export const NUM_FIELDS = [
 
 export const USER_COLUMNS = [
   "u.id", "u.username", "u.display_name", "u.role", "u.active", "u.created_at",
-  "u.company_id", "u.company_name", "u.key_id", "u.phone", "u.created_by",
+  "u.company_id", "u.company_name", "u.key_id", "u.phone", "u.created_by", "u.pin_hash",
   ...BOOL_FIELDS.map((f) => `u.${f}`),
   ...NUM_FIELDS.map((f) => `u.${f}`),
 ].join(", ");
@@ -121,6 +121,7 @@ export async function getUser(token: string | null): Promise<PortalUser | null> 
     created_by: u.created_by != null ? Number(u.created_by) : null,
   };
   for (const f of BOOL_FIELDS) me[f] = sqlBool(u[f]);
+  me.has_pin = !!u.pin_hash;
   if (u.role === "admin" || u.role === "super_admin") {
     me.can_web_survey = true;
   }

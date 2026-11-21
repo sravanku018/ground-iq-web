@@ -16,7 +16,9 @@ import {
   sha256Hex,
 } from "../lib/bytes.ts";
 import {
+  hashPasswordAsync,
   newToken,
+  verifyPassword,
 } from "../lib/crypto.ts";
 import {
   sql,
@@ -140,6 +142,124 @@ export async function handleAuth(c: Ctx): Promise<Response | null> {
         DELETE FROM app_device_tokens WHERE token_hash = ${await sha256Hex(deviceToken)}
       `.catch(() => null);
     return json({ ok: true });
+  }
+
+  // ── 4-digit PIN quick-login (opt-in per account; super_admin excluded) ──
+  // The PIN is a convenience unlock for people who set one. Guessing is gated
+  // by a per-user lockout (5 wrong → 15 min) on top of the per-IP limiter.
+  if (path === "/api/auth/pin/setup" && method === "POST") {
+    if (!me) return json({ error: "Login required" }, 401);
+    if (me.role === "super_admin") {
+      return json({ error: "Super Admin uses password + authenticator sign-in." }, 403);
+    }
+    const body = await readBody(req);
+    const pin = String(body.pin || "").trim();
+    if (!/^\d{4}$/.test(pin)) return json({ error: "PIN must be exactly 4 digits." }, 400);
+    const pinHash = await hashPasswordAsync(pin);
+    await sql`
+        UPDATE app_users
+        SET pin_hash = ${pinHash}, pin_failed_attempts = 0, pin_locked_until = NULL
+        WHERE id = ${Number(me.id)}
+      `;
+    logAudit(me, "pin_setup", "user", Number(me.id), {});
+    return json({ ok: true, has_pin: true });
+  }
+
+  if (path === "/api/auth/pin/disable" && method === "POST") {
+    if (!me) return json({ error: "Login required" }, 401);
+    if (me.role === "super_admin") {
+      return json({ error: "Super Admin uses password + authenticator sign-in." }, 403);
+    }
+    await sql`
+        UPDATE app_users SET pin_hash = NULL, pin_failed_attempts = 0, pin_locked_until = NULL
+        WHERE id = ${Number(me.id)}
+      `;
+    logAudit(me, "pin_disable", "user", Number(me.id), {});
+    return json({ ok: true, has_pin: false });
+  }
+
+  if (path === "/api/auth/pin/login" && method === "POST") {
+    const ip = clientIp(req);
+    if (!checkRateLimit(`auth:${ip}`)) {
+      return json({ error: "Too many login attempts. Try again later." }, 429);
+    }
+    const body = await readBody(req);
+    const username = String(body.username || "").trim().toLowerCase();
+    const pin = String(body.pin || "").trim();
+    if (!username || !/^\d{4}$/.test(pin)) {
+      return json({ error: "Username and 4-digit PIN are required." }, 400);
+    }
+    const userRows = await sql`
+        SELECT * FROM app_users WHERE LOWER(username) = ${username} LIMIT 1
+      `.catch(() => []);
+    const user = userRows[0] as Record<string, unknown> | undefined;
+    if (!user || !sqlBool(user.active)) {
+      return json({ error: "Invalid username or PIN." }, 401);
+    }
+    if (user.role === "super_admin") {
+      return json({ error: "Super Admin uses password + authenticator sign-in." }, 403);
+    }
+    if (user.role !== "admin" && user.role !== "sub_client_admin" && user.role !== "surveyor") {
+      return json({ error: "Account not allowed." }, 403);
+    }
+    if (!user.pin_hash) {
+      return json({ error: "No PIN set for this account — sign in with your password." }, 401);
+    }
+    // Lockout: 5 consecutive wrong PINs -> 15-minute lock. Password login is unaffected.
+    if (user.pin_locked_until && new Date(String(user.pin_locked_until)).getTime() > Date.now()) {
+      const mins = Math.max(1, Math.ceil((new Date(String(user.pin_locked_until)).getTime() - Date.now()) / 60000));
+      return json({ error: `PIN locked after too many wrong attempts — try again in ${mins} minute(s), or sign in with your password.` }, 423);
+    }
+    const ok = await verifyPassword(pin, String(user.pin_hash || ""));
+    if (!ok) {
+      const attempts = Number(user.pin_failed_attempts || 0) + 1;
+      if (attempts >= 5) {
+        await sql`
+            UPDATE app_users SET pin_failed_attempts = ${attempts}, pin_locked_until = NOW() + INTERVAL '15 minutes'
+            WHERE id = ${Number(user.id)}
+          `;
+        return json({ error: "Wrong PIN — 5 attempts made. PIN locked for 15 minutes; sign in with your password." }, 423);
+      }
+      await sql`UPDATE app_users SET pin_failed_attempts = ${attempts} WHERE id = ${Number(user.id)}`;
+      return json({ error: `Wrong PIN. ${5 - attempts} attempt(s) left before the PIN locks.`, attempts_left: 5 - attempts }, 401);
+    }
+    await sql`
+        UPDATE app_users SET pin_failed_attempts = 0, pin_locked_until = NULL WHERE id = ${Number(user.id)}
+      `;
+    const expectedRole = String(body.expected_role || "").trim().toLowerCase();
+    if (expectedRole === "surveyor" && user.role !== "surveyor") {
+      return json({ error: "This PIN is not a surveyor login." }, 403);
+    }
+    if (expectedRole === "admin" && user.role !== "admin" && user.role !== "sub_client_admin") {
+      return json({ error: "Client Admin portal only." }, 403);
+    }
+    const sessionToken = newToken();
+    const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    await sql`
+        INSERT INTO app_sessions (token, user_id, expires_at)
+        VALUES (${sessionToken}, ${Number(user.id)}, ${expires.toISOString()})
+      `;
+    logAudit(
+      {
+        id: Number(user.id),
+        username: String(user.username || ""),
+        role: String(user.role || ""),
+      },
+      "login_pin",
+      "user",
+      Number(user.id),
+      { expected_role: expectedRole || null },
+    );
+    return json({
+      token: sessionToken,
+      user: authUserPayload(user),
+      expires_at: expires.toISOString(),
+      access:
+        user.role === "surveyor"
+          ? "surveyor_field_app"
+          : "client_admin_portal",
+      note: "Signed in with 4-digit PIN",
+    });
   }
 
   // ── Fingerprint / passkey login (WebAuthn) ─────────────

@@ -90,6 +90,7 @@ export function authUserPayload(u: Record<string, unknown>) {
     max_records: Number(u.max_records) || 0,
     max_categories: Number(u.max_categories) || 0,
     max_sub_admins: Number(u.max_sub_admins) || 0,
+    has_pin: !!u.pin_hash,
   };
 }
 

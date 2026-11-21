@@ -52,6 +52,7 @@ import { isValidInMobile, toE164In } from './phoneIn'
 import VerifiedBadge from './VerifiedBadge'
 import { PortalSkeleton } from './PortalUI'
 import BiometricCard from './components/BiometricCard'
+import PinCard from './components/PinCard'
 import PasskeyCard from './components/PasskeyCard'
 import ProfilePhoto from './components/ProfilePhoto'
 import { claimReload, isChunkLoadError, reloadSoon } from './reloadGuard'
@@ -996,8 +997,9 @@ function SurveyorProfileScreen({
         </div>
       </div>
 
-      {/* Fingerprint / passkey sign-in for this phone/browser */}
+      {/* Fingerprint / passkey / PIN sign-in for this phone/browser */}
       <BiometricCard user={user} onToast={onToast} />
+      <PinCard user={user} onToast={onToast} />
       <PasskeyCard onToast={onToast} />
 
       {/* App Preferences & Settings */}

@@ -152,6 +152,11 @@ export async function ensureSchema(): Promise<void> {
     () => sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS created_by INT`,
     // Sub Client Admin delegation: how many sub admins this account may create. 0 = unlimited.
     () => sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS max_sub_admins INTEGER NOT NULL DEFAULT 2`,
+    // 4-digit PIN quick-login (opt-in per account). The hash never leaves the
+    // server; lockout counters gate online guessing.
+    () => sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS pin_hash TEXT`,
+    () => sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS pin_failed_attempts INTEGER NOT NULL DEFAULT 0`,
+    () => sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS pin_locked_until TIMESTAMPTZ`,
     // Role check (moved out of seedMissingSuperAdminSlots)
     () => sql`ALTER TABLE app_users DROP CONSTRAINT IF EXISTS app_users_role_check`,
     () => sql`ALTER TABLE app_users ADD CONSTRAINT app_users_role_check CHECK (role IN ('super_admin','admin','field','user','surveyor','sub_client_admin'))`,
@@ -396,7 +401,7 @@ export async function ensureCompanyExists(
 
 // Bump this when ensureSchema() steps change. The version is stored in
 // app_settings; if it matches, the ~58 CREATE/ALTER round-trips are skipped.
-const SCHEMA_VERSION = "2026-11-17.1";
+const SCHEMA_VERSION = "2026-11-21.1";
 
 export let schemaReady: Promise<void> | null = null;
 

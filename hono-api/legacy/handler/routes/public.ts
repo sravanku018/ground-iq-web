@@ -301,7 +301,8 @@ export async function handlePublic(c: Ctx): Promise<Response | null> {
                COALESCE(max_surveyors, 0) AS max_surveyors,
                COALESCE(max_records, 0) AS max_records,
                COALESCE(max_categories, 5) AS max_categories,
-               COALESCE(max_sub_admins, 2) AS max_sub_admins
+               COALESCE(max_sub_admins, 2) AS max_sub_admins,
+               (pin_hash IS NOT NULL) AS has_pin
         FROM app_users WHERE LOWER(username) = ${username} LIMIT 1
       `.catch(async () =>
       await sql`
@@ -450,6 +451,7 @@ export async function handlePublic(c: Ctx): Promise<Response | null> {
         max_records: Number(uu.max_records) || 0,
         max_categories: Number(uu.max_categories) || 0,
         max_sub_admins: Number(uu.max_sub_admins) || 2,
+        has_pin: !!uu.has_pin,
       },
       expires_at: expires.toISOString(),
       access:

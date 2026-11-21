@@ -9,6 +9,7 @@ import {
 } from './api'
 import CredentialsCard from './components/CredentialsCard'
 import BiometricCard from './components/BiometricCard'
+import PinCard from './components/PinCard'
 import PasskeyCard from './components/PasskeyCard'
 import { isNewerBuild } from './version'
 import ShareAppLink from './components/ShareAppLink'
@@ -294,6 +295,7 @@ export default function AdminProfileScreen({ user, onToast, onUserUpdated }) {
 
         {isSuper && <SonioxKeyCard onToast={onToast} />}
         {!isSuper && <BiometricCard user={user} onToast={onToast} />}
+        {!isSuper && <PinCard user={user} onToast={onToast} />}
         {!isSuper && <PasskeyCard onToast={onToast} />}
 
         {!isSuper && (
