@@ -32,7 +32,7 @@ export default function LoginScreen({ onSuccess, onToast }) {
   })()
   const [pinMode, setPinMode] = useState(false)
   const [pin, setPin] = useState('')
-  const [pinLoading, setPinLoading] = useState(false)
+  const [pinLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [bioLoading, setBioLoading] = useState(false)

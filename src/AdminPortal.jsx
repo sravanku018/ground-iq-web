@@ -22,7 +22,7 @@ import useAppRelease from './useAppRelease'
 import QuotaIndicator from './components/QuotaIndicator'
 import AdminLogin from './AdminLogin'
 import VerifiedBadge from './VerifiedBadge'
-import { PortalEmpty, PortalSkeleton } from './PortalUI'
+import { PortalSkeleton } from './PortalUI'
 import { claimReload, isChunkLoadError, reloadSoon, hardReload } from './reloadGuard'
 import AdminBell from './AdminBell'
 import { fetchInboxCounts, useInboxCounts } from './inboxCounts'
@@ -37,9 +37,7 @@ import './portal.css'
 const AdminUsersScreen = lazy(() => import('./AdminUsers'))
 const AdminSurveysScreen = lazy(() => import('./AdminSurveys'))
 const AdminQuestionsScreen = lazy(() => import('./AdminQuestions'))
-const AdminAnalyzeScreen = lazy(() => import('./AdminAnalyze'))
 const AdminConversationsScreen = lazy(() => import('./AdminConversations'))
-const AdminChartsScreen = lazy(() => import('./AdminCharts'))
 const ReviewQAScreen = lazy(() => import('./ReviewQA'))
 const DashboardScreen = lazy(() => import('./Dashboard'))
 const AdminDataScreen = lazy(() => import('./AdminData'))
@@ -176,19 +174,7 @@ class ChunkErrorBoundary extends Component {
   }
 }
 
-function formatDate(v) {
-  if (!v) return '—'
-  try {
-    return new Date(v).toLocaleString(undefined, {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    })
-  } catch {
-    return String(v)
-  }
-}
-
-function Overview({ user, stats, onNav, superAdminOnly = false, canPage = () => true, onToast }) {
+function Overview({ user, stats, onNav, superAdminOnly = false, canPage = () => true }) {
   const isSuper = superAdminOnly || user?.role === 'super_admin'
   const gated = (p) => {
     // Super Admin (or console mode) always sees every feature

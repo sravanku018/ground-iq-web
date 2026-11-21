@@ -130,7 +130,7 @@ export async function handleWebSurvey(c: Ctx): Promise<Response | null> {
       ended_at: link.used_at || null,
       used_at: link.used_at || null,
       reused: true,
-      ...(snap || {}),
+      ...snap,
     });
   }
 

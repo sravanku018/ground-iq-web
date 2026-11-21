@@ -33,7 +33,7 @@ export default function AdminLogin({ onSuccess, onToast, superAdminOnly = false 
   })()
   const [pinMode, setPinMode] = useState(false)
   const [pin, setPin] = useState('')
-  const [pinLoading, setPinLoading] = useState(false)
+  const [pinLoading] = useState(false)
   const [totpStep, setTotpStep] = useState(null)
   const [loading, setLoading] = useState(false)
   const [bioLoading, setBioLoading] = useState(false)
