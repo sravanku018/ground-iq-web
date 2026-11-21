@@ -57,7 +57,7 @@ export async function warmAnalyticsCache(): Promise<void> {
   const now = Date.now();
   if (now - lastWarmAt < WARM_INTERVAL_MS) return;
   lastWarmAt = now;
-  for (const [key, seen] of [...recentKeys.entries()]) {
+  for (const [key, seen] of Array.from(recentKeys.entries())) {
     if (now - seen > RECENT_WINDOW_MS) {
       recentKeys.delete(key);
       continue;

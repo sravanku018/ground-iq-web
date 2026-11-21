@@ -92,7 +92,7 @@ export async function handleWebSurvey(c: Ctx): Promise<Response | null> {
         title: surveyTitle,
         max_uses: link.max_uses,
         use_count: link.use_count,
-        ...(snap0 || {}),
+        ...snap0,
       }, 410);
     }
     const nextMax = Math.max(link.use_count, maxUses);
@@ -351,7 +351,7 @@ export async function handleWebSurvey(c: Ctx): Promise<Response | null> {
       deactivated: deactivated || surveyEnded,
       survey_ended: surveyEnded,
       sharing_disabled: expired || deactivated || surveyEnded,
-      ...(snap || {}),
+      ...snap,
     });
   }
 

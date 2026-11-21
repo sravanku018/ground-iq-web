@@ -16,7 +16,6 @@ import {
 
   me,
 } from './api'
-import ShareAppLink from './components/ShareAppLink'
 import { reportError } from './errorReporter'
 import useAppRelease from './useAppRelease'
 import QuotaIndicator from './components/QuotaIndicator'
