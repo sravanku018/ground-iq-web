@@ -46,7 +46,42 @@ import {
 } from "../lib/webauthn.ts";
 
 export async function handleAuth(c: Ctx): Promise<Response | null> {
-  const { req, path, method, me } = c;
+  const { req, url, path, method, me } = c;
+
+  // Public login-method discovery: the sign-in screen asks which quick-login
+  // options exist for a username BEFORE the user signs in. Unknown usernames
+  // get the same shape as an account with nothing enabled (no enumeration).
+  if (path === "/api/auth/methods" && method === "GET") {
+    const ip = clientIp(req);
+    if (!checkRateLimit(`methods:${ip}`, 30)) {
+      return json({ error: "Too many requests. Try again later." }, 429);
+    }
+    const username = String(url.searchParams.get("username") || "").trim().toLowerCase();
+    if (!username || username.length > 100) {
+      return json({ has_pin: false, has_passkey: false, has_device: false });
+    }
+    const rows = await sql`
+        SELECT u.id,
+               (u.pin_hash IS NOT NULL) AS has_pin,
+               EXISTS(SELECT 1 FROM webauthn_credentials p WHERE p.user_id = u.id) AS has_passkey,
+               EXISTS(
+                 SELECT 1 FROM app_device_tokens d
+                 WHERE d.user_id = u.id AND d.expires_at > NOW()
+               ) AS has_device
+        FROM app_users u
+        WHERE LOWER(u.username) = ${username}
+          AND u.role IN ('super_admin', 'admin', 'sub_client_admin', 'surveyor')
+          AND u.active = TRUE
+        LIMIT 1
+      `.catch(() => []);
+    const row = rows[0] as Record<string, unknown> | undefined;
+    return json({
+      has_pin: !!row?.has_pin,
+      has_passkey: !!row?.has_passkey,
+      has_device: !!row?.has_device,
+    });
+  }
+
   // ── Native Android fingerprint unlock (BiometricPrompt) ──
   // The device stores a long-lived token, encrypted with AndroidKeyStore.
   // This is not WebAuthn/passkeys; it exchanges the token for a session.

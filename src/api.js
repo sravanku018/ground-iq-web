@@ -505,6 +505,10 @@ export function deleteSubmission(id) {
   })
 }
 
+export function authMethods(username) {
+  return request(`/api/auth/methods?username=${encodeURIComponent(username || '')}`)
+}
+
 export function pinSetup(pin) {
   return request('/api/auth/pin/setup', {
     method: 'POST',

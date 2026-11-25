@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { clearSession, login, pinLogin } from './api'
+import { authMethods, clearSession, login, pinLogin } from './api'
 import PinPad from './components/PinPad'
 import {
   authenticateBiometric,
@@ -27,10 +27,21 @@ export default function AdminLogin({ onSuccess, onToast, superAdminOnly = false 
     if (superAdminOnly) return ''
     try { return localStorage.getItem('esurvey_last_username_admin') || '' } catch { return '' }
   })()
-  const pinReady = (() => {
-    if (superAdminOnly) return false
-    try { return !!lastUser && localStorage.getItem('esurvey_has_pin_admin') === 'true' } catch { return false }
-  })()
+  // Server truth: only show the PIN option for opt-in accounts
+  const [methods, setMethods] = useState({ has_pin: false, has_passkey: false, has_device: false })
+  useEffect(() => {
+    if (superAdminOnly) return undefined
+    const name = username.trim()
+    if (!name) { setMethods({ has_pin: false, has_passkey: false, has_device: false }); return undefined }
+    let alive = true
+    const t = setTimeout(() => {
+      authMethods(name)
+        .then((d) => { if (alive) setMethods(d || {}) })
+        .catch(() => { if (alive) setMethods({ has_pin: false, has_passkey: false, has_device: false }) })
+    }, 250)
+    return () => { alive = false; clearTimeout(t) }
+  }, [username, superAdminOnly])
+  const pinReady = !!methods.has_pin
   const [pinMode, setPinMode] = useState(false)
   const [pin, setPin] = useState('')
   const [pinLoading] = useState(false)

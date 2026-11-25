@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { clearSession, login, pinLogin } from './api'
+import { authMethods, clearSession, login, pinLogin } from './api'
 import PinPad from './components/PinPad'
 import { versionLabel } from './version'
 import {
@@ -36,9 +36,21 @@ export default function LoginScreen({ onSuccess, onToast }) {
   const lastUser = (() => {
     try { return localStorage.getItem('esurvey_last_username_field') || '' } catch { return '' }
   })()
-  const pinReady = (() => {
-    try { return !!lastUser && localStorage.getItem('esurvey_has_pin_field') === 'true' } catch { return false }
-  })()
+  // Server truth: ask which quick-login options this username has, so the
+  // PIN button only appears for accounts that actually opted in.
+  const [methods, setMethods] = useState({ has_pin: false, has_passkey: false, has_device: false })
+  useEffect(() => {
+    const name = username.trim()
+    if (!name) { setMethods({ has_pin: false, has_passkey: false, has_device: false }); return undefined }
+    let alive = true
+    const t = setTimeout(() => {
+      authMethods(name)
+        .then((d) => { if (alive) setMethods(d || {}) })
+        .catch(() => { if (alive) setMethods({ has_pin: false, has_passkey: false, has_device: false }) })
+    }, 250)
+    return () => { alive = false; clearTimeout(t) }
+  }, [username])
+  const pinReady = !!methods.has_pin
   const [pinMode, setPinMode] = useState(false)
   const [pin, setPin] = useState('')
   const [pinLoading] = useState(false)
