@@ -23,8 +23,8 @@ export const GITHUB_REPO = "sravanku018/ground-iq-web";
  * API all carry one number.
  */
 export const APP_RELEASE = {
-  version: "2.0.131",
-  versionCode: 200131,
+  version: "2.0.132",
+  versionCode: 200132,
   minSupportedVersionCode: 20000,
 };
 

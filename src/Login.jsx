@@ -15,6 +15,15 @@ import {
 } from './webauthn'
 import logoMark from './assets/logo-mark.png'
 
+/** Saves flags that the login screen reads to decide whether to show the PIN button. */
+function rememberLogin(user, fallbackName) {
+  try {
+    const name = user?.username || fallbackName
+    if (name) localStorage.setItem('esurvey_last_username_field', name)
+    localStorage.setItem('esurvey_has_pin_field', String(!!user?.has_pin))
+  } catch { /* ignore */ }
+}
+
 /**
  * Surveyor field app login ONLY.
  * Credentials from Client Admin. No demo credentials on screen.
@@ -77,6 +86,7 @@ export default function LoginScreen({ onSuccess, onToast }) {
         clearSession()
         throw new Error('Account disabled.')
       }
+      rememberLogin(data.user, '')
       onToast?.(`Hi ${data.user.name}`, 'ok')
       onSuccess?.(data.user)
     } catch (e) {
@@ -101,6 +111,7 @@ export default function LoginScreen({ onSuccess, onToast }) {
         clearSession()
         throw new Error('Account disabled.')
       }
+      rememberLogin(data.user, username.trim())
       onToast?.(`Hi ${data.user.name}`, 'ok')
       onSuccess?.(data.user)
     } catch (e) {
@@ -128,10 +139,7 @@ export default function LoginScreen({ onSuccess, onToast }) {
         clearSession()
         throw new Error('Account disabled.')
       }
-      try {
-        localStorage.setItem('esurvey_last_username_field', lastUser)
-        localStorage.setItem('esurvey_has_pin_field', String(!!data.user?.has_pin))
-      } catch { /* ignore */ }
+      rememberLogin(data.user, lastUser)
       onToast?.(`Hi ${data.user.name}`, 'ok')
       onSuccess?.(data.user)
     } catch (err) {
@@ -179,10 +187,7 @@ export default function LoginScreen({ onSuccess, onToast }) {
         setError(msg)
         throw new Error(msg)
       }
-      try {
-        localStorage.setItem('esurvey_last_username_field', loginName)
-        localStorage.setItem('esurvey_has_pin_field', String(!!data.user?.has_pin))
-      } catch { /* ignore */ }
+      rememberLogin(data.user, username.trim())
       if (nativeBio) {
         const enabled = await offerBiometricAfterLogin(
           data.user?.username || username.trim(),
