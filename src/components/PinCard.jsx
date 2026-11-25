@@ -1,138 +1,107 @@
-import { useState } from 'react'
-import { pinDisable, pinSetup } from '../api'
-import PinPad from './PinPad'
+import { useEffect, useRef } from 'react'
 
 /**
- * PinCard — opt-in 4-digit PIN quick-login management (profile screens).
- * Set / Change / Remove. The PIN only unlocks the same portal the password
- * opens, and guessing is locked out after 5 wrong attempts server-side.
+ * PinPad - always shows `length` (default 4) PIN slots + on-screen keypad.
+ * Props: value, onChange(str), onComplete(str), disabled, autoFocus, length.
+ * Self-contained inline styles; colours inherit from the parent (works on dark and light).
  */
-export default function PinCard({ user, onToast, onUpdated }) {
-  const [hasPin, setHasPin] = useState(!!user?.has_pin)
-  const [mode, setMode] = useState('view') // view | set
-  const [pin, setPin] = useState('')
-  const [confirmPin, setConfirmPin] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
+export default function PinPad({
+  value = '',
+  onChange,
+  onComplete,
+  disabled = false,
+  autoFocus = true,
+  length = 4,
+}) {
+  const inputRef = useRef(null)
+  const v = String(value || '').replace(/\D/g, '').slice(0, length)
 
-  async function handleSet() {
-    setError('')
-    if (!/^\d{4}$/.test(pin)) {
-      setError('The PIN must be exactly 4 digits.')
-      return
-    }
-    if (pin !== confirmPin) {
-      setError('The two PINs do not match.')
-      return
-    }
-    setBusy(true)
-    try {
-      const res = await pinSetup(pin)
-      if (res?.error) throw new Error(res.error)
-      setHasPin(true)
-      setMode('view')
-      setPin('')
-      setConfirmPin('')
-      onToast?.('PIN quick-login saved — use it on the sign-in screen', 'ok')
-      onUpdated?.({ has_pin: true })
-    } catch (e) {
-      setError(e.message || 'Could not save the PIN')
-    } finally {
-      setBusy(false)
-    }
+  useEffect(() => {
+    if (autoFocus && !disabled) inputRef.current?.focus()
+  }, [autoFocus, disabled])
+
+  function update(next) {
+    const clean = String(next).replace(/\D/g, '').slice(0, length)
+    onChange?.(clean)
+    if (clean.length === length && v.length < length) onComplete?.(clean)
   }
 
-  async function handleRemove() {
-    if (!window.confirm('Remove the PIN? You will sign in with your password (or fingerprint/passkey).')) return
-    setBusy(true)
-    try {
-      const res = await pinDisable()
-      if (res?.error) throw new Error(res.error)
-      setHasPin(false)
-      setMode('view')
-      setPin('')
-      setConfirmPin('')
-      onToast?.('PIN removed', 'ok')
-      onUpdated?.({ has_pin: false })
-    } catch (e) {
-      setError(e.message || 'Could not remove the PIN')
-    } finally {
-      setBusy(false)
-    }
+  const keyStyle = {
+    height: 48,
+    fontSize: 20,
+    fontWeight: 600,
+    borderRadius: 10,
+    border: '1px solid currentColor',
+    borderColor: 'rgba(148,163,184,0.45)',
+    background: 'rgba(148,163,184,0.12)',
+    color: 'inherit',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    opacity: disabled ? 0.5 : 1,
   }
 
   return (
-    <div className="card" style={{ marginBottom: 14, padding: 16 }}>
-      <h3 style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 800 }}>
-        🔢 4-digit PIN quick-login
-      </h3>
-      <p className="muted" style={{ margin: '0 0 10px', fontSize: 12 }}>
-        Opt-in convenience: sign in with a 4-digit PIN instead of your password —
-        on this app and the sign-in screen. Guessing is locked out after 5 wrong
-        attempts, and your password always works.
-      </p>
+    <div
+      style={{ position: 'relative', width: 240, maxWidth: '100%', color: 'inherit' }}
+      onClick={() => inputRef.current?.focus()}
+    >
+      {/* hidden input: physical keyboard support, no soft keyboard on phones */}
+      <input
+        ref={inputRef}
+        value={v}
+        onChange={(e) => update(e.target.value)}
+        disabled={disabled}
+        inputMode="none"
+        autoComplete="off"
+        aria-label={`${length}-digit PIN`}
+        style={{ position: 'absolute', opacity: 0, pointerEvents: 'none', width: 1, height: 1 }}
+      />
 
-      {error ? (
-        <div className="banner error" role="alert" style={{ marginBottom: 8 }}>
-          {error}
-        </div>
-      ) : null}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginBottom: 14 }}>
+        {Array.from({ length }).map((_, i) => {
+          const filled = i < v.length
+          const current = i === v.length
+          return (
+            <div
+              key={i}
+              style={{
+                width: 44,
+                height: 52,
+                borderRadius: 10,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                border: current ? '2px solid #4f7dc6' : '2px solid rgba(148,163,184,0.6)',
+                background: 'rgba(148,163,184,0.12)',
+              }}
+            >
+              {filled ? (
+                <span style={{ width: 12, height: 12, borderRadius: '50%', background: 'currentColor' }} />
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
 
-      {mode === 'view' ? (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span className="pill ok" style={{ fontSize: 12 }}>
-            <span className="dot" />
-            {hasPin ? 'PIN enabled' : 'No PIN set'}
-          </span>
-          <button
-            type="button"
-            className="btn small primary"
-            onClick={() => { setMode('set'); setPin(''); setConfirmPin(''); setError('') }}
-          >
-            {hasPin ? 'Change PIN' : 'Set a PIN'}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
+          <button key={d} type="button" style={keyStyle} disabled={disabled} onClick={() => update(v + d)}>
+            {d}
           </button>
-          {hasPin && (
-            <button type="button" className="btn small danger" disabled={busy} onClick={() => void handleRemove()}>
-              Remove PIN
-            </button>
-          )}
-        </div>
-      ) : (
-        <div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <PinPad value={pin} onChange={setPin} disabled={busy} autoFocus />
-            <PinPad
-              value={confirmPin}
-              onChange={setConfirmPin}
-              disabled={busy}
-              autoFocus={false}
-            />
-            <span className="muted" style={{ fontSize: 11 }}>
-              Type the PIN twice to confirm
-            </span>
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              className="btn primary"
-              disabled={busy || pin.length !== 4 || pin !== confirmPin}
-              onClick={() => void handleSet()}
-              style={{ flex: 1 }}
-            >
-              {busy ? 'Saving…' : hasPin ? 'Change PIN' : 'Save PIN'}
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={busy}
-              onClick={() => { setMode('view'); setPin(''); setConfirmPin(''); setError('') }}
-              style={{ flex: 1 }}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
+        ))}
+        <span />
+        <button type="button" style={keyStyle} disabled={disabled} onClick={() => update(v + '0')}>
+          0
+        </button>
+        <button
+          type="button"
+          style={keyStyle}
+          disabled={disabled}
+          aria-label="Backspace"
+          onClick={() => onChange?.(v.slice(0, -1))}
+        >
+          ⌫
+        </button>
+      </div>
     </div>
   )
 }
